@@ -20,11 +20,15 @@ endif()
 # Include cmake
 include(${PROJECT_SOURCE_DIR}/cmake/URL.conf.cmake)
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+# set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(Packing)
 
 #--------------------------------------
 # Fetch gnuplot-iostream
 include(Add_gnuplot-iostream)
 
+#--------------------------------------
+# Find system dependencies
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 set(BOOST_USE_STATIC_LIBS OFF)
@@ -32,9 +36,8 @@ set(BOOST_USE_MULTITHREADED ON)
 set(BOOST_USE_STATIC_RUNTIME OFF)
 find_package(Boost 1.71.0 COMPONENTS system iostreams filesystem)
 
-set(CMAKE_INSTALL_PREFIX  /opt/${PROJECT_NAME}/)
-include(GNUInstallDirs)
-
+#--------------------------------------
+# Build
 set(LIB_SOURCE_FILES src/FS_Hydrodynamics.cpp src/LinearIncidentWave.cpp src/interp1d.cpp)
 
 add_library(${PROJECT_NAME} SHARED ${LIB_SOURCE_FILES})
@@ -80,21 +83,56 @@ add_executable(MotionExample examples/MotionExample.cpp)
 target_link_libraries(MotionExample FreeSurfaceHydrodynamics)
 target_include_directories(MotionExample PRIVATE ${gnuplot-iostream_INCLUDE_DIRS})
 
-file(COPY examples/example_hydrodynamic_coeffs DESTINATION .)
+#--------------------------------------
+# Install
 
-install(TARGETS ${PROJECT_NAME} EXPORT FreeSurfaceHydrodynamicsConfig
-    ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
+if(NOT APPLE)
+  set(CMAKE_INSTALL_PREFIX  /opt/${PROJECT_NAME}/)
+  include(GNUInstallDirs)
 
-install(EXPORT FreeSurfaceHydrodynamicsConfig DESTINATION share/FreeSurfaceHydrodynamics/cmake)
+  file(COPY examples/example_hydrodynamic_coeffs DESTINATION .)
+  
+  install(TARGETS ${PROJECT_NAME} EXPORT FreeSurfaceHydrodynamicsConfig
+      ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR})
+  install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
 
-install(FILES cmake/etc/ld.so.conf.d/${PROJECT_NAME}.conf DESTINATION /etc/ld.so.conf.d/) 
+  install(EXPORT FreeSurfaceHydrodynamicsConfig DESTINATION share/FreeSurfaceHydrodynamics/cmake)
 
-export(TARGETS ${PROJECT_NAME} FILE FreeSurfaceHydrodynamicsConfig.cmake)
+  install(FILES cmake/etc/ld.so.conf.d/${PROJECT_NAME}.conf DESTINATION /etc/ld.so.conf.d/) 
 
+  export(TARGETS ${PROJECT_NAME} FILE FreeSurfaceHydrodynamicsConfig.cmake)
 
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(Packing)
+else()
+
+  # BEM coefficients
+  # TODO copy to share instead?
+  file(COPY examples/example_hydrodynamic_coeffs DESTINATION .)
+
+  # libraries and binaries
+  install(
+    TARGETS
+      ${PROJECT_NAME}
+      IncidentWaveExample
+      PlotCoeffsExample
+      BuoyancyForceExample
+      GravityForceExample
+      RadiationForceExample
+      ExcitingForceExample
+      MotionExample
+    EXPORT "${PROJECT_NAME}Config"
+    ARCHIVE DESTINATION lib/${PROJECT_NAME}
+    LIBRARY DESTINATION lib/${PROJECT_NAME}
+    RUNTIME DESTINATION bin/${PROJECT_NAME}
+  )
+
+  # includes
+  install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
+
+  # cmake config
+  install(EXPORT "${PROJECT_NAME}Config" DESTINATION share/${PROJECT_NAME}/cmake)
+  export(TARGETS ${PROJECT_NAME} FILE "${PROJECT_NAME}Config.cmake")
+endif()
+
 
